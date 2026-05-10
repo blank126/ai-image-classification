@@ -134,26 +134,44 @@ for images, labels_batch in train_ds.take(1):
 plt.show()
 
 
-# Model
-model = tf.keras.Sequential(name='SingleLayerPerceptron')
+# ==========================================================
+# 5. 모델 설계 (성능 개선: DNN 구조 및 ReLU, Dropout, Adam 적용)
+# ==========================================================
+# 기존의 단층 신경망(SingleLayerPerceptron)을 다층 신경망으로 변경합니다.
+model = tf.keras.Sequential(name='Improved_Deep_Neural_Network')
 
-# 입력층
+# 입력층: 이미지 크기 (96, 96, 3)
 model.add(layers.Input(shape=(IMG_HEIGHT, IMG_WIDTH, 3)))
 
+# Flatten: 이미지를 1차원 벡터로 변환
 model.add(layers.Flatten())
 
-# 출력층
-model.add(layers.Dense(units=num_classes,activation='softmax',name='Output'))
+# --- 추가 옵션 실험: 은닉층(Hidden Layers) 및 활성화 함수(ReLU) 추가 ---
+# 은닉층을 추가하여 모델이 이미지의 복잡한 특징을 학습할 수 있도록 합니다.
+model.add(layers.Dense(512, activation='relu')) # 첫 번째 은닉층 + ReLU
+model.add(layers.Dropout(0.3))                 # 과적합 방지를 위한 Dropout (30%)
+
+model.add(layers.Dense(256, activation='relu')) # 두 번째 은닉층 + ReLU
+model.add(layers.Dropout(0.2))                 # Dropout (20%)
+
+model.add(layers.Dense(128, activation='relu')) # 세 번째 은닉층 + ReLU
+
+# 출력층: 7개 동물 클래스 분류를 위한 Softmax
+model.add(layers.Dense(units=num_classes, activation='softmax', name='Output'))
 
 
-# 모델 학습 방식
+# --- 성능 개선: 최적화 알고리즘(Adam) 적용 ---
+# 일반 SGD보다 수렴 속도가 빠르고 효율적인 Adam 옵티마이저를 사용합니다.
 model.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.0005), # 학습률 설정
     loss='sparse_categorical_crossentropy',
     metrics=['accuracy']
 )
 
-# 모델 구조 출력
+# 변경된 모델 구조 출력
 model.summary()
+
+
 
 
 # 모델 학습
