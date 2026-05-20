@@ -59,9 +59,6 @@ image_paths = np.array(image_paths)
 labels = np.array(labels)
 
 
-
-
-
 # Train 
 train_paths, temp_paths, train_labels, temp_labels = train_test_split(
     image_paths,                         
@@ -89,12 +86,17 @@ print("Validation:", len(val_paths))
 print("Test:", len(test_paths))
 
 
-
-# 이미지 경로와 라벨을 받아 실제 이미지 tensor로 변환
+# ==========================================================
+# 4. 데이터 전처리 (★정규화 추가 수정된 부분★)
+# ==========================================================
 def load_image(path, label):
     image = tf.io.read_file(path)
     image = tf.image.decode_jpeg(image, channels=3)
     image = tf.image.resize(image, IMG_SIZE)
+    
+    # 0~255 범위를 0.0~1.0 범위의 실수 값으로 변환 (정규화 필수!)
+    image = tf.cast(image, tf.float32) / 255.0 
+    
     return image, label
 
 
@@ -121,57 +123,49 @@ val_ds = make_dataset(val_paths, val_labels)
 test_ds = make_dataset(test_paths, test_labels)
 
 
-
-
 # 샘플 이미지를 출력 (필요없으면 주석 처리)
 plt.figure(figsize=(10, 10))
 for images, labels_batch in train_ds.take(1):
     for i in range(9):
         plt.subplot(3, 3, i + 1)
-        plt.imshow(images[i].numpy().astype("uint8"))
+        # 정규화가 되었으므로 이미지가 0~1 사이의 값이므로 그대로 출력 가능합니다.
+        plt.imshow(images[i].numpy())
         plt.title(class_names[labels_batch[i]])
         plt.axis("off")
 plt.show()
 
 
 # ==========================================================
-# 5. 모델 설계 (성능 개선: DNN 구조 및 ReLU, Dropout, Adam 적용)
+# 5. 모델 설계 (DNN 구조 및 ReLU, Dropout, Adam 적용)
 # ==========================================================
-# 기존의 단층 신경망(SingleLayerPerceptron)을 다층 신경망으로 변경합니다.
 model = tf.keras.Sequential(name='Improved_Deep_Neural_Network')
 
-# 입력층: 이미지 크기 (96, 96, 3)
+# 입력층
 model.add(layers.Input(shape=(IMG_HEIGHT, IMG_WIDTH, 3)))
-
-# Flatten: 이미지를 1차원 벡터로 변환
 model.add(layers.Flatten())
 
-# --- 추가 옵션 실험: 은닉층(Hidden Layers) 및 활성화 함수(ReLU) 추가 ---
-# 은닉층을 추가하여 모델이 이미지의 복잡한 특징을 학습할 수 있도록 합니다.
-model.add(layers.Dense(512, activation='relu')) # 첫 번째 은닉층 + ReLU
-model.add(layers.Dropout(0.3))                 # 과적합 방지를 위한 Dropout (30%)
+# 추가 옵션 실험 반영: 은닉층 고도화 및 활성화 함수 추가
+model.add(layers.Dense(512, activation='relu'))
+model.add(layers.Dropout(0.3))                 
 
-model.add(layers.Dense(256, activation='relu')) # 두 번째 은닉층 + ReLU
-model.add(layers.Dropout(0.2))                 # Dropout (20%)
+model.add(layers.Dense(256, activation='relu'))
+model.add(layers.Dropout(0.2))                 
 
-model.add(layers.Dense(128, activation='relu')) # 세 번째 은닉층 + ReLU
+model.add(layers.Dense(128, activation='relu'))
 
-# 출력층: 7개 동물 클래스 분류를 위한 Softmax
+# 출력층
 model.add(layers.Dense(units=num_classes, activation='softmax', name='Output'))
 
 
-# --- 성능 개선: 최적화 알고리즘(Adam) 적용 ---
-# 일반 SGD보다 수렴 속도가 빠르고 효율적인 Adam 옵티마이저를 사용합니다.
+# 매개변수 변경 및 최적화 기법 반영
 model.compile(
-    optimizer=tf.keras.optimizers.Adam(learning_rate=0.0005), # 학습률 설정
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.0005),
     loss='sparse_categorical_crossentropy',
     metrics=['accuracy']
 )
 
 # 변경된 모델 구조 출력
 model.summary()
-
-
 
 
 # 모델 학습
@@ -191,7 +185,6 @@ val_loss, val_acc = model.evaluate(
 
 # 검증 정확도 출력
 print(f"\nValidation Accuracy: {val_acc * 100:.2f}%")
-# 검증 손실 출력
 print(f"Validation Loss: {val_loss:.4f}")
 
 
@@ -203,37 +196,27 @@ test_loss, test_acc = model.evaluate(
 
 # 테스트 정확도 출력
 print(f"\nTest Accuracy: {test_acc * 100:.2f}%")
-# 테스트 손실 출력
 print(f"Test Loss: {test_loss:.4f}")
 
 
-
-# 실제 라벨 저장 리스트
+# 실제 라벨 및 예측 결과 저장
 y_true = []
-# 예측 라벨 저장 리스트
 y_pred = []
 
-# 테스트 데이터셋 반복
 for images, labels_batch in test_ds:
-    # 모델 예측 수행
     preds = model.predict(images, verbose=0)
-    # 가장 높은 확률을 가진 클래스 선택
     preds = np.argmax(preds, axis=1)
-    # 실제 라벨 저장
     y_true.extend(labels_batch.numpy())
-    # 예측 라벨 저장
     y_pred.extend(preds)
 
 
-# 결과 출력
 print("\nClassification Report")
-
-print(classification_report(y_true,y_pred,target_names=class_names))
+print(classification_report(y_true, y_pred, target_names=class_names))
 
 cm = confusion_matrix(y_true, y_pred)
 
 
-# 히트맵
+# 혼동행렬 시각화
 plt.figure(figsize=(8, 6))
 sns.heatmap(
     cm,
@@ -248,25 +231,19 @@ plt.xlabel("Predicted")
 plt.ylabel("True")
 plt.show()
 
-# 학습 과정
+# 학습 곡선 시각화
 epochs_range = range(1, len(history.history['accuracy']) + 1)
 
-# 학습 및 검증 정확도 그래프
 plt.figure(figsize=(14, 5))
 plt.subplot(1, 2, 1)
 plt.plot(epochs_range, history.history['loss'], label='Training Loss')
 plt.plot(epochs_range, history.history['val_loss'], label='Validation Loss')
 plt.title("Loss")
 plt.legend()
+
 plt.subplot(1, 2, 2)
 plt.plot(epochs_range, history.history['accuracy'], label='Training Accuracy')
-
-# 검증 정확도
 plt.plot(epochs_range, history.history['val_accuracy'], label='Validation Accuracy')
 plt.title("Accuracy")
 plt.legend()
-plt.show()
-
-# 파일 맨 밑에 이 내용이 있는지 확인하고, 없으면 복사해서 붙여넣으세요.
-import matplotlib.pyplot as plt
 plt.show()
