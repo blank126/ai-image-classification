@@ -87,14 +87,14 @@ print("Test:", len(test_paths))
 
 
 # ==========================================================
-# 4. 데이터 전처리 (★정규화 추가 수정된 부분★)
+# 4. 데이터 전처리 (정규화 단계)
 # ==========================================================
 def load_image(path, label):
     image = tf.io.read_file(path)
     image = tf.image.decode_jpeg(image, channels=3)
     image = tf.image.resize(image, IMG_SIZE)
     
-    # 0~255 범위를 0.0~1.0 범위의 실수 값으로 변환 (정규화 필수!)
+    # 0~255 범위를 0.0~1.0 범위의 실수 값으로 변환 (정규화)
     image = tf.cast(image, tf.float32) / 255.0 
     
     return image, label
@@ -128,7 +128,6 @@ plt.figure(figsize=(10, 10))
 for images, labels_batch in train_ds.take(1):
     for i in range(9):
         plt.subplot(3, 3, i + 1)
-        # 정규화가 되었으므로 이미지가 0~1 사이의 값이므로 그대로 출력 가능합니다.
         plt.imshow(images[i].numpy())
         plt.title(class_names[labels_batch[i]])
         plt.axis("off")
@@ -136,35 +135,52 @@ plt.show()
 
 
 # ==========================================================
-# 5. 모델 설계 (DNN 구조 및 ReLU, Dropout, Adam 적용)
+# 5. 모델 설계 (★최종 업그레이드: 고도화된 CNN 구조 적용★)
 # ==========================================================
-model = tf.keras.Sequential(name='Improved_Deep_Neural_Network')
+# 이미지의 2D 공간 구조를 유지하며 특징을 추출하는 합성곱 신경망을 설계합니다.
+model = tf.keras.Sequential(name='Advanced_CNN_Model')
 
 # 입력층
 model.add(layers.Input(shape=(IMG_HEIGHT, IMG_WIDTH, 3)))
+
+# [CNN 블록 1] 이미지의 거친 윤곽선 및 색상 패턴 추출
+model.add(layers.Conv2D(32, (3, 3), activation='relu', padding='same'))
+model.add(layers.BatchNormalization()) # 내부 공변량 변화를 방지하여 빠른 학습 가속화
+model.add(layers.MaxPooling2D((2, 2))) # 해상도를 줄여 주요 정보만 압축
+model.add(layers.Dropout(0.25))
+
+# [CNN 블록 2] 눈, 코, 입 등 구체적인 동물의 형태적 특징 추출
+model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same'))
+model.add(layers.BatchNormalization())
+model.add(layers.MaxPooling2D((2, 2)))
+model.add(layers.Dropout(0.25))
+
+# [CNN 블록 3] 딥러닝 고차원 세부 특징 추출
+model.add(layers.Conv2D(128, (3, 3), activation='relu', padding='same'))
+model.add(layers.BatchNormalization())
+model.add(layers.MaxPooling2D((2, 2)))
+model.add(layers.Dropout(0.25))
+
+
+# [분류층 - DNN 연계] 2D 특징 맵이 완성되었으므로 최종 분류를 위해 일렬로 펼침
 model.add(layers.Flatten())
 
-# 추가 옵션 실험 반영: 은닉층 고도화 및 활성화 함수 추가
-model.add(layers.Dense(512, activation='relu'))
-model.add(layers.Dropout(0.3))                 
-
 model.add(layers.Dense(256, activation='relu'))
-model.add(layers.Dropout(0.2))                 
+model.add(layers.BatchNormalization())
+model.add(layers.Dropout(0.5)) # 전결합층의 강력한 과적합 방지 규제
 
-model.add(layers.Dense(128, activation='relu'))
-
-# 출력층
+# 최종 출력층 (7개 클래스 동물 분류)
 model.add(layers.Dense(units=num_classes, activation='softmax', name='Output'))
 
 
-# 매개변수 변경 및 최적화 기법 반영
+# 최적화 및 하이퍼파라미터 컴파일 (안정적인 CNN 수렴을 위한 Adam 튜닝)
 model.compile(
-    optimizer=tf.keras.optimizers.Adam(learning_rate=0.0005),
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
     loss='sparse_categorical_crossentropy',
     metrics=['accuracy']
 )
 
-# 변경된 모델 구조 출력
+# 변경된 CNN 모델 레이어 구조 출력
 model.summary()
 
 
